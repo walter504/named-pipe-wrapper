@@ -20,7 +20,7 @@ namespace NamedPipeWrapper
         /// </summary>
         /// <param name="pipeName">Name of the server's pipe</param>
         /// <param name="serverName">server name default is local.</param>
-        public NamedPipeClient(string pipeName,string serverName=".") : base(pipeName, serverName)
+        public NamedPipeClient(string pipeName, string serverName = ".") : base(pipeName, serverName)
         {
         }
     }
@@ -42,6 +42,11 @@ namespace NamedPipeWrapper
         public bool AutoReconnect { get; set; }
 
         /// <summary>
+        /// The number of milliseconds to wait for the server to respond before the connection times out.
+        /// </summary>
+        public int ConnectionTimeout { get; set; } = 30000;
+
+        /// <summary>
         /// Invoked whenever a message is received from the server.
         /// </summary>
         public event ConnectionMessageEventHandler<TRead, TWrite> ServerMessage;
@@ -55,7 +60,7 @@ namespace NamedPipeWrapper
         /// Invoked whenever an exception is thrown during a read or write operation on the named pipe.
         /// </summary>
         public event PipeExceptionEventHandler Error;
-
+        
         private readonly string _pipeName;
         private NamedPipeConnection<TRead, TWrite> _connection;
 
@@ -73,7 +78,7 @@ namespace NamedPipeWrapper
         /// </summary>
         /// <param name="pipeName">Name of the server's pipe</param>
         /// <param name="serverName">the Name of the server, default is  local machine</param>
-        public NamedPipeClient(string pipeName,string serverName)
+        public NamedPipeClient(string pipeName, string serverName)
         {
             _pipeName = pipeName;
             _serverName = serverName;
@@ -151,12 +156,12 @@ namespace NamedPipeWrapper
         private void ListenSync()
         {
             // Get the name of the data pipe that should be used from now on by this NamedPipeClient
-            var handshake = PipeClientFactory.Connect<string, string>(_pipeName,_serverName);
+            var handshake = PipeClientFactory.Connect<string, string>(_pipeName, _serverName, ConnectionTimeout);
             var dataPipeName = handshake.ReadObject();
             handshake.Close();
 
             // Connect to the actual data pipe
-            var dataPipe = PipeClientFactory.CreateAndConnectPipe(dataPipeName,_serverName);
+            var dataPipe = PipeClientFactory.CreateAndConnectPipe(dataPipeName, _serverName, ConnectionTimeout);
 
             // Create a Connection object for the data pipe
             _connection = ConnectionFactory.CreateConnection<TRead, TWrite>(dataPipe);
@@ -209,21 +214,21 @@ namespace NamedPipeWrapper
 
     static class PipeClientFactory
     {
-        public static PipeStreamWrapper<TRead, TWrite> Connect<TRead, TWrite>(string pipeName,string serverName)
+        public static PipeStreamWrapper<TRead, TWrite> Connect<TRead, TWrite>(string pipeName, string serverName, int connectionTimeout)
             where TRead : class
             where TWrite : class
         {
-            return new PipeStreamWrapper<TRead, TWrite>(CreateAndConnectPipe(pipeName,serverName));
+            return new PipeStreamWrapper<TRead, TWrite>(CreateAndConnectPipe(pipeName, serverName, connectionTimeout));
         }
 
-        public static NamedPipeClientStream CreateAndConnectPipe(string pipeName, string serverName)
+        public static NamedPipeClientStream CreateAndConnectPipe(string pipeName, string serverName, int connectionTimeout = 30000)
         {
             var pipe = CreatePipe(pipeName, serverName);
-            pipe.Connect();
+            pipe.Connect(connectionTimeout);
             return pipe;
         }
 
-        private static NamedPipeClientStream CreatePipe(string pipeName,string serverName)
+        private static NamedPipeClientStream CreatePipe(string pipeName, string serverName)
         {
             return new NamedPipeClientStream(serverName, pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.WriteThrough);
         }
